@@ -1,0 +1,52 @@
+function [gauss_pyr, laplacian_pyr] = compute_pyr(input_image, num_layer)
+
+    % input_image RGB or grayscale image (H, W) or (H, W, 3)
+    % num_layer layers to be calculated in the pyramid
+    % total num_layer will be num_layer + 1 including original image
+    % if num_layer doesn't satisgy with size of input_image, num_layer..
+    % will be overwritten by best avialable option
+
+    % gauss_pyr cell array of length num_layer+1 (Gaussian pyramid)
+    % laplacian_pyr cell array of length num_layer+1 (Laplacian pyramid)
+    
+    H = size(input_image,1);
+    W = size(input_image,2);
+
+    min_legth = 16; 
+    max_layer = min(floor(log2([H W]) - log2(min_legth)));
+    num_layer = min(num_layer, max_layer); % overwrite num_layer if needed
+    num_layer = num_layer + 1; % including the original image
+
+    % calculate optimal image size and add padding
+    lowest_size = [H W] / 2^(num_layer - 1);
+    lowest_size = ceil(lowest_size);
+    padded_size = lowest_size * 2^(num_layer - 1);
+    padded_img = my_pad(input_image, padded_size(1), padded_size(2), "copy-edge");
+
+    % for anti-aliasing
+    gauss_ker = fspecial('gaussian', [10 10], 2);
+    %surf(gauss_ker)
+
+    gauss_pyr = cell(1,num_layer);
+    gauss_pyr{1} = padded_img;
+    for k = 2:num_layer
+        img = gauss_pyr{k-1};
+        %gauss_ker_freq = fspecial('gaussian', [size(img,1) size(img,2)], 100);
+        %for i=1:size(img,3)
+            %img(:,:,i) = abs(my_ifft2(ifftshift(fftshift(my_fft2(img(:,:,i)).*gauss_ker_freq))));
+        %end
+
+        [~, img] = my_conv2(img, gauss_ker, "copy-edge", "same"); % smoothed
+        gauss_pyr{k} = my_downsample(img, 2);
+    end
+
+    laplacian_pyr = cell(1,num_layer);
+    laplacian_pyr{num_layer} = gauss_pyr{num_layer};
+    for k = 1:(num_layer - 1)
+       high_res = gauss_pyr{k};
+       low_res = my_upsample(gauss_pyr{k+1}, 2);
+       laplacian_pyr{k} = high_res - low_res;
+    end
+
+end
+
